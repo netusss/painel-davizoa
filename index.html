@@ -2,12 +2,24 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel Pro - Davizoa</title>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root { --accent: #4a90e2; --bg: #f4f6f9; }
-        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); padding: 20px; margin: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); padding: 10px; margin: 0; font-size: 16px; }
+        
+        /* Ajustes para Mobile */
+        @media (max-width: 768px) {
+            .top-section { grid-template-columns: 1fr !important; }
+            .board { grid-template-columns: 1fr !important; }
+            .header-profile { flex-direction: column; text-align: center; }
+            .card { font-size: 16px !important; padding: 20px !important; }
+            input, select, button { font-size: 16px !important; padding: 12px !important; }
+            .form-box { flex-direction: column; align-items: stretch; }
+        }
+
         #login-screen { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; }
         .hidden { display: none !important; }
         .header-profile { display: flex; align-items: center; justify-content: space-between; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 20px; }
@@ -41,21 +53,21 @@
             <div><h2>Olá, Davi!</h2><small>Painel de Gestão Davizoa</small></div>
         </div>
         <div>
-            <button onclick="salvarTudo()">Salvar Painel</button>
-            <button onclick="exportarCSV()">Exportar CSV</button>
+            <button onclick="salvarTudo()">Salvar</button>
+            <button onclick="exportarCSV()">CSV</button>
         </div>
     </header>
 
     <div class="top-section">
         <div class="chart-container"><canvas id="meuGrafico"></canvas></div>
         <section class="form-box">
-            <input type="text" id="nome" placeholder="Cliente..." style="flex:1;">
-            <input type="text" id="conteudo" placeholder="Conteúdo..." style="flex:1;">
-            <input type="number" id="valor" placeholder="R$..." style="width:80px;">
+            <input type="text" id="nome" placeholder="Cliente...">
+            <input type="text" id="conteudo" placeholder="Conteúdo...">
+            <input type="number" id="valor" placeholder="R$...">
             <input type="date" id="inicio">
             <input type="date" id="termino">
             <select id="prio"><option value="low">Baixa</option><option value="medium">Média</option><option value="high">Alta</option></select>
-            <button onclick="adicionarCard()" style="background:var(--accent); color:white; border:none; padding:10px 20px; border-radius:5px; cursor:pointer;">Adicionar</button>
+            <button onclick="adicionarCard()" style="background:var(--accent); color:white; border:none; padding:10px 20px; border-radius:5px;">Adicionar</button>
         </section>
     </div>
 
@@ -98,93 +110,52 @@
                              <div class="checklist" onclick="event.stopPropagation()">
                                 <input type="checkbox"> Roteiro <input type="checkbox"> Gravação <input type="checkbox"> Edição
                              </div>
-                             <textarea class="nota-input" placeholder="Anotações internas..."></textarea>
-                             <button onclick="this.parentElement.remove(); atualizar();">X</button>
-                             <button onclick="window.open('https://calendar.google.com/calendar/render?action=TEMPLATE&text=Campanha+${nome}')">📅 Agenda</button>`;
+                             <textarea class="nota-input" placeholder="Anotações..."></textarea>
+                             <button onclick="this.parentElement.remove(); atualizar();">X</button>`;
             document.getElementById('col-conversa').appendChild(div);
             atualizar();
         }
 
         function atualizar() {
+            document.querySelectorAll('.list').forEach(el => new Sortable(el, { group: 'shared', onEnd: atualizar }));
             const hoje = new Date().toISOString().split('T')[0];
-            const vencendo = document.querySelectorAll('.card[data-fim="'+hoje+'"]');
-            if(vencendo.length > 0 && Notification.permission === "granted") {
-                new Notification("Alerta Davizoa", { body: `Você tem ${vencendo.length} projeto(s) vencendo hoje!` });
-            }
-
-            document.querySelectorAll('.list').forEach(el => new Sortable(el, { 
-                group: 'shared', 
-                onEnd: (evt) => {
-                    if(evt.to.id === 'col-fechada' && !evt.item.querySelector('.data-conclusao')) {
-                        evt.item.innerHTML += `<br><small class="data-conclusao">✅ Finalizado em: ${new Date().toLocaleDateString()}</small>`;
-                    }
-                    verificarPrazos();
-                } 
-            }));
-            
-            verificarPrazos();
+            document.querySelectorAll('.card').forEach(card => {
+                card.classList.toggle('vencendo-hoje', card.dataset.fim && card.dataset.fim <= hoje && !card.parentElement.id.includes('fechada'));
+            });
             const listaCal = document.getElementById('lista-calendario');
             listaCal.innerHTML = '';
             document.querySelectorAll('.card').forEach(c => {
                 listaCal.innerHTML += `<div><strong>${c.dataset.fim}</strong>: ${c.querySelector('strong').innerText}</div>`;
             });
-
             if(chart) {
-                chart.data.datasets[0].data = [
-                    document.getElementById('col-conversa').children.length,
-                    document.getElementById('col-fechada').children.length,
-                    document.getElementById('col-recusada').children.length
-                ];
+                chart.data.datasets[0].data = [document.getElementById('col-conversa').children.length, document.getElementById('col-fechada').children.length, document.getElementById('col-recusada').children.length];
                 chart.update();
             }
         }
 
-        function verificarPrazos() {
-            const hoje = new Date().toISOString().split('T')[0];
-            document.querySelectorAll('.card').forEach(card => {
-                if (card.dataset.fim && card.dataset.fim <= hoje && !card.parentElement.id.includes('fechada')) {
-                    card.classList.add('vencendo-hoje');
-                } else {
-                    card.classList.remove('vencendo-hoje');
-                }
-            });
-        }
-
-        if (Notification.permission !== "granted") Notification.requestPermission();
-
         function salvarTudo() {
-            const dados = {
-                conversa: document.getElementById('col-conversa').innerHTML,
-                fechada: document.getElementById('col-fechada').innerHTML,
-                recusada: document.getElementById('col-recusada').innerHTML
-            };
+            const dados = { conv: document.getElementById('col-conversa').innerHTML, fech: document.getElementById('col-fechada').innerHTML, rec: document.getElementById('col-recusada').innerHTML };
             localStorage.setItem('davizoa_full', JSON.stringify(dados));
             alert("Painel salvo!");
-        }
-
-        function carregarFoto(e) {
-            const reader = new FileReader();
-            reader.onload = (ev) => {
-                document.getElementById('foto-perfil').src = ev.target.result;
-                localStorage.setItem('davizoa_foto', ev.target.result);
-            };
-            reader.readAsDataURL(e.target.files[0]);
         }
 
         window.onload = () => {
             if(localStorage.getItem('acesso_liberado') === 'true') document.getElementById('login-screen').classList.add('hidden');
             const salvo = JSON.parse(localStorage.getItem('davizoa_full'));
             if(salvo) {
-                document.getElementById('col-conversa').innerHTML = salvo.conversa;
-                document.getElementById('col-fechada').innerHTML = salvo.fechada;
-                document.getElementById('col-recusada').innerHTML = salvo.recusada;
+                document.getElementById('col-conversa').innerHTML = salvo.conv;
+                document.getElementById('col-fechada').innerHTML = salvo.fech;
+                document.getElementById('col-recusada').innerHTML = salvo.rec;
             }
-            if(localStorage.getItem('davizoa_foto')) document.getElementById('foto-perfil').src = localStorage.getItem('davizoa_foto');
             chart = new Chart(document.getElementById('meuGrafico').getContext('2d'), { type: 'pie', data: { labels: ['Conversa', 'Fechada', 'Recusada'], datasets: [{ data: [0,0,0], backgroundColor: ['#f1c40f', '#2ecc71', '#e74c3c'] }] } });
             atualizar();
         };
 
-        function exportarCSV() { /* Lógica de exportação */ }
+        function carregarFoto(e) {
+            const reader = new FileReader();
+            reader.onload = (ev) => { document.getElementById('foto-perfil').src = ev.target.result; localStorage.setItem('davizoa_foto', ev.target.result); };
+            reader.readAsDataURL(e.target.files[0]);
+        }
     </script>
 </body>
 </html>
